@@ -19,7 +19,8 @@ export default class Ground{
 
     }
 
-    draw(){
+    // method so the ground seems infinite
+    draw(){ 
         this.ctx.drawImage(this.groundImage, this.x, this.y, this.width, this.height);
         this.ctx.drawImage(this.groundImage, this.x + this.width, this.y, this.width, this.height);
 
