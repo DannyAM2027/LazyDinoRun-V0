@@ -160,7 +160,7 @@ function showStartGameText(){
     const y = canvas.height / 2;
     ctx.fillText("Tap Screen, Press Space, or Blink to Start", x, y);
 }
-/*  */
+/* OpenCV + media pipe */
 async function startCamera() {
   const stream = await navigator.mediaDevices.getUserMedia({
     video: { width: 640, height: 480 }
@@ -195,7 +195,6 @@ function visionLoop() {
     return;
   }
 
-  // only run when there's a new video frame
   if (video.currentTime !== lastVideoTime) {
     lastVideoTime = video.currentTime;
 
@@ -203,7 +202,7 @@ function visionLoop() {
 
     if (results.faceLandmarks && results.faceLandmarks.length > 0) {
       const landmarks = results.faceLandmarks[0];
-      const ear = computeEAR(landmarks);     // you’ll add this next
+      const ear = computeEAR(landmarks);
       handleBlink(ear);                       // triggers jump
     }
   }
@@ -214,12 +213,12 @@ function visionLoop() {
 function handleBlink(ear) {
   const eyesClosed = ear < EAR_THRESHOLD;
 
-  // Eyes just closed → press space
+
   if (eyesClosed && !prevEyesClosed) {
     player.dispatchSpaceDown();
   }
 
-  // Eyes just opened → release space
+
   if (!eyesClosed && prevEyesClosed) {
     player.dispatchSpaceUp();
   }
@@ -242,14 +241,14 @@ function eyeEAR(landmarks, leftCorner, rightCorner, top1, bottom1, top2, bottom2
 }
 
 function computeEAR(landmarks) {
-  // Left eye indices (MediaPipe FaceMesh)
+
   const left = eyeEAR(landmarks,
     33, 133,   // corners
     159, 145,  // vertical pair 1
     158, 153   // vertical pair 2
   );
 
-  // Right eye indices
+
   const right = eyeEAR(landmarks,
     362, 263,
     386, 374,
