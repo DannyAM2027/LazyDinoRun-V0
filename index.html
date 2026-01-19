@@ -27,12 +27,56 @@
             -webkit-tap-highlight-color: black;
         }
         canvas{
-            border: 2px solid gray;
+            border-bottom: 2px solid grey;/* tinker here */
+        }
+        #title {
+            position: fixed;
+            top: 9vh;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 2000;
+        }
+
+        #title img {
+            width: 40vw;        /* scales with screen width */
+            max-width: 420px;   /* prevents it from getting huge */
+            min-width: 180px;   /* prevents it from getting tiny */
+            height: 3vw;
+
+            image-rendering: pixelated;
         }
     </style>
+    <style>
+        #webcamVideo {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            width: 160px;
+            height: 120px;
+            border: 2px solid gray;
+            border-radius: 8px;
+            z-index: 1000;
+            transform: scaleX(-1);
+        }
+    </style>
+
     <script src="index.js" defer type="module"></script>
 </head>
 <body>
+
+    <div id="title">
+        <a href="https://fontmeme.com/pixel-fonts/" target="_blank" rel="noopener">
+            <img src="https://fontmeme.com/permalink/260119/1fb8dd66.png" 
+            alt="Lazy Dino Run"></a>
+    </div>
+    
+
+    <video
+    id="webcamVideo"
+    autoplay
+    playsinline
+    muted
+    ></video>
 
     <canvas id="game"></canvas>
     

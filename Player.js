@@ -45,9 +45,9 @@ export default class Player {
         window.addEventListener('keyup', this.keyup);
 
         //touch
+
         window.removeEventListener('touchstart', this.touchstart);
         window.removeEventListener('touchend', this.touchend);
-
         window.addEventListener('touchstart', this.touchstart);
         window.addEventListener('touchend', this.touchend);
     }
@@ -76,9 +76,6 @@ export default class Player {
 
     update(gameSpeed, frameTimeDelta){
         this.run(gameSpeed, frameTimeDelta);
-        if(this.jumpInProgress){
-            this.image = this.standingStillImage;
-        }
         this.jump(frameTimeDelta);
     }
 
@@ -126,4 +123,27 @@ export default class Player {
     draw() {
         this.ctx.drawImage(this.image, this.x, this.y, this.width, this.height);
     }
+
+    dispatchSpaceDown() {
+    const event = new KeyboardEvent("keydown", {
+        key: " ",
+        code: "Space",
+        keyCode: 32,
+        which: 32,
+        bubbles: true
+    });
+    window.dispatchEvent(event);
+}
+
+dispatchSpaceUp() {
+  const event = new KeyboardEvent("keyup", {
+    key: " ",
+    code: "Space",
+    keyCode: 32,
+    which: 32,
+    bubbles: true
+  });
+  window.dispatchEvent(event);
+}
+
 }

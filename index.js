@@ -1,14 +1,32 @@
 import Ground from "./Ground.js";
 import Player from "./Player.js";
 import CactiController from "./CactiController.js";
+import Score from "./Score.js";
+
+import vision from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0";
+
+const { FaceLandmarker, FilesetResolver } = vision;
+
+
 
 
 
 const canvas = document.getElementById("game")
 const ctx = canvas.getContext("2d")
 
-const GAME_SPEED_START = .75; // 1.0
+const video = document.getElementById("webcamVideo");
+
+
+const GAME_SPEED_START = 1.0; // 1.0
 const GAME_SPEED_INCREMENT = 0.00001
+
+//vision
+let lastVideoTime = -1;
+window.visionJumpRequested = false;
+
+let faceLandmarker = null;
+let prevEyesClosed = false;
+const EAR_THRESHOLD = 0.22; // tune if needed
 
 const GAME_WIDTH = 800;
 const GAME_HEIGHT = 200;
@@ -37,6 +55,8 @@ let previousTime = null;
 let gameSpeed = GAME_SPEED_START;
 let gameOver = false;
 let hasAddedEventListenersForRestart = false;
+let waitingToStart = true;
+let score = null;
 
 function createSprites(){
     const playerWidthInGame = PLAYER_WIDTH * scaleRatio;
@@ -61,7 +81,9 @@ function createSprites(){
         }
     });
 
-    cactiController = new CactiController(ctx, cactiImages, scaleRatio, GROUND_AND_CACTUS_SPEED)
+    cactiController = new CactiController(ctx, cactiImages, scaleRatio, GROUND_AND_CACTUS_SPEED);
+
+    score = new Score(ctx, scaleRatio);
 }
 
 function setScreen(){
@@ -100,7 +122,7 @@ function getScaleRatio(){
 
 function showGameOver(){
     const fontSize = 70 * scaleRatio;
-    ctx.font = `${fontSize}px fantasy`;
+    ctx.font = `${fontSize}px verdana`;
     ctx.fillStyle = "grey";
     const x = canvas.width / 4.5;
     const y = canvas.height / 2;
@@ -123,9 +145,124 @@ function setupGameReset(){
 function reset(){
     hasAddedEventListenersForRestart = false;
     gameOver = false;
+    waitingToStart = false;
     ground.reset();
     cactiController.reset();
+    score.reset();
     gameSpeed = GAME_SPEED_START;
+}
+
+function showStartGameText(){
+    const fontSize = 30 * scaleRatio;
+    ctx.font = `${fontSize}px verdana`;
+    ctx.fillStyle = "grey";
+    const x = canvas.width / 10;
+    const y = canvas.height / 2;
+    ctx.fillText("Tap Screen, Press Space, or Blink to Start", x, y);
+}
+/*  */
+async function startCamera() {
+  const stream = await navigator.mediaDevices.getUserMedia({
+    video: { width: 640, height: 480 }
+  });
+  video.srcObject = stream;
+}
+
+(async function initVision() {
+  await startCamera();
+  await createFaceLandmarker();
+  requestAnimationFrame(visionLoop);
+})();
+
+async function createFaceLandmarker() {
+  const filesetResolver = await FilesetResolver.forVisionTasks(
+    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm"
+  );
+
+  faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
+    baseOptions: {
+      modelAssetPath:
+        "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task"
+    },
+    runningMode: "VIDEO",
+    numFaces: 1
+  });
+}
+
+function visionLoop() {
+  if (!faceLandmarker || video.readyState < 2) {
+    requestAnimationFrame(visionLoop);
+    return;
+  }
+
+  // only run when there's a new video frame
+  if (video.currentTime !== lastVideoTime) {
+    lastVideoTime = video.currentTime;
+
+    const results = faceLandmarker.detectForVideo(video, performance.now());
+
+    if (results.faceLandmarks && results.faceLandmarks.length > 0) {
+      const landmarks = results.faceLandmarks[0];
+      const ear = computeEAR(landmarks);     // you’ll add this next
+      handleBlink(ear);                       // triggers jump
+    }
+  }
+
+  requestAnimationFrame(visionLoop);
+}
+
+function handleBlink(ear) {
+  const eyesClosed = ear < EAR_THRESHOLD;
+
+  // Eyes just closed → press space
+  if (eyesClosed && !prevEyesClosed) {
+    player.dispatchSpaceDown();
+  }
+
+  // Eyes just opened → release space
+  if (!eyesClosed && prevEyesClosed) {
+    player.dispatchSpaceUp();
+  }
+
+  prevEyesClosed = eyesClosed;
+}
+
+function dist(a, b) {
+  const dx = a.x - b.x;
+  const dy = a.y - b.y;
+  return Math.hypot(dx, dy);
+}
+
+// EAR = (vertical1 + vertical2) / (2 * horizontal)
+function eyeEAR(landmarks, leftCorner, rightCorner, top1, bottom1, top2, bottom2) {
+  const A = dist(landmarks[top1], landmarks[bottom1]);
+  const B = dist(landmarks[top2], landmarks[bottom2]);
+  const C = dist(landmarks[leftCorner], landmarks[rightCorner]);
+  return (A + B) / (2.0 * C);
+}
+
+function computeEAR(landmarks) {
+  // Left eye indices (MediaPipe FaceMesh)
+  const left = eyeEAR(landmarks,
+    33, 133,   // corners
+    159, 145,  // vertical pair 1
+    158, 153   // vertical pair 2
+  );
+
+  // Right eye indices
+  const right = eyeEAR(landmarks,
+    362, 263,
+    386, 374,
+    385, 380
+  );
+
+  return (left + right) / 2.0;
+}
+
+/*  */
+
+function updateGameSpeed(frameTimeDelta){
+    gameSpeed += frameTimeDelta * GAME_SPEED_INCREMENT;
 }
 
 function clearScreen() {
@@ -144,28 +281,40 @@ function gameLoop(currentTime) {
 
     clearScreen();
 
-    if(!gameOver){
+    if(!gameOver && !waitingToStart){
         //Update Game Objects
         ground.update(gameSpeed, frameTimeDelta);
         cactiController.update(gameSpeed, frameTimeDelta);
         player.update(gameSpeed, frameTimeDelta);
+        score.update(frameTimeDelta);
+        updateGameSpeed(frameTimeDelta);
     }
 
     if(!gameOver && cactiController.collideWith(player)){
         gameOver = true;
         setupGameReset()  
+        score.setHighScore();
     }
 
     //Draw Game Objects
     ground.draw();
     cactiController.draw();
     player.draw();
+    score.draw();
 
     if(gameOver){
         showGameOver()
+
+    }
+    if(waitingToStart){
+        showStartGameText()
     }
 
     requestAnimationFrame(gameLoop);
 }
 
 requestAnimationFrame(gameLoop)
+
+window.addEventListener("keyup", reset,{once: true});
+window.addEventListener("touchstart", reset,{once: true});
+

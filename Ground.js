@@ -29,4 +29,9 @@ export default class Ground{
         }
 
     }
+
+    reset(){
+        this.x = 0;
+    }
+
 }
